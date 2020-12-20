@@ -1,0 +1,179 @@
+package sshauth
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+
+	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/helper/cidrutil"
+	"github.com/hashicorp/vault/sdk/logical"
+)
+
+func (b *backend) pathLogin() *framework.Path {
+	return &framework.Path{
+		Pattern: "login$",
+		Fields: map[string]*framework.FieldSchema{
+			"role": {
+				Type:        framework.TypeString,
+				Description: "role to use (name must exist in the certificate principal)",
+			},
+			"cert": {
+				Type:        framework.TypeString,
+				Description: "SSH certificate (base64 encoded)",
+			},
+			"public_key": {
+				Type:        framework.TypeString,
+				Description: "SSH public key (base64 encoded)",
+			},
+			"signature": {
+				Type:        framework.TypeString,
+				Description: "Signature over the nonce (base64 encoded)",
+			},
+			"nonce": {
+				Type:        framework.TypeString,
+				Description: "Nonce (base64 encoded)",
+			},
+		},
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.UpdateOperation: &framework.PathOperation{
+				Callback: b.handleLogin,
+				Summary:  "Log in using ssh certificates",
+			},
+			logical.AliasLookaheadOperation: &framework.PathOperation{
+				Callback: b.handleLogin,
+			},
+		},
+	}
+}
+
+func (b *backend) pathLoginAliasLookahead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	role := d.Get("role").(string)
+	if role == "" {
+		return nil, fmt.Errorf("missing role")
+	}
+
+	return &logical.Response{
+		Auth: &logical.Auth{
+			Alias: &logical.Alias{
+				Name: role,
+			},
+		},
+	}, nil
+}
+
+func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	config, err := b.config(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+
+	if config == nil {
+		return logical.ErrorResponse("could not load configuration"), nil
+	}
+
+	roleName := data.Get("role").(string)
+	if roleName == "" {
+		return logical.ErrorResponse("role must be provided"), nil
+	}
+
+	role, err := b.role(ctx, req.Storage, roleName)
+	if err != nil {
+		return nil, err
+	}
+
+	if role == nil {
+		return logical.ErrorResponse("role %q could not be found", roleName), nil
+	}
+
+	principals := []string{roleName}
+
+	// if we have explicit principals we must check those
+	if len(role.Principals) > 0 {
+		principals = role.Principals
+	}
+
+	if len(role.TokenBoundCIDRs) > 0 {
+		if req.Connection == nil {
+			b.Logger().Warn("token bound CIDRs found but no connection information available for validation")
+			return nil, logical.ErrPermissionDenied
+		}
+
+		if !cidrutil.RemoteAddrIsOk(req.Connection.RemoteAddr, role.TokenBoundCIDRs) {
+			return nil, logical.ErrPermissionDenied
+		}
+	}
+
+	signature := data.Get("signature").(string)
+	if signature == "" {
+		return logical.ErrorResponse("signature must be provided"), nil
+	}
+
+	cert := data.Get("cert").(string)
+
+	pubkey := data.Get("public_key").(string)
+
+	if pubkey == "" && cert == "" {
+		return logical.ErrorResponse("cert or pubkey must be provided"), nil
+	}
+
+	nonce := data.Get("nonce").(string)
+	if nonce == "" {
+		return logical.ErrorResponse("nonce must be provided"), nil
+	}
+
+	sigDecode, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return logical.ErrorResponse("decoding signature failed"), nil
+	}
+
+	nonceDecode, err := base64.StdEncoding.DecodeString(nonce)
+	if err != nil {
+		return logical.ErrorResponse("decoding nonce failed"), nil
+	}
+
+	toParseKey := cert
+	if toParseKey == "" {
+		toParseKey = pubkey
+	}
+
+	pk, err := parsePubkey(toParseKey)
+	if err != nil {
+		return logical.ErrorResponse("decoding public_key/cert failed: " + err.Error()), err
+	}
+
+	if err := verifySignature(pk, nonceDecode, sigDecode); err != nil {
+		return logical.ErrorResponse(err.Error()), err
+	}
+
+	if cert != "" {
+		if err := validateCert(pk, config, principals); err != nil {
+			return logical.ErrorResponse("validation cert failed: " + err.Error()), err
+		}
+	} else {
+		if err := validatePubkey(pubkey, role); err != nil {
+			return logical.ErrorResponse("validation public_key failed: " + err.Error()), err
+		}
+	}
+
+	// Compose the response
+	resp := &logical.Response{}
+	auth := &logical.Auth{
+		InternalData: map[string]interface{}{
+			"role": roleName,
+		},
+		Metadata: map[string]string{
+			"role": roleName,
+		},
+		DisplayName: roleName,
+		Alias: &logical.Alias{
+			Name: roleName,
+		},
+	}
+
+	role.PopulateTokenAuth(auth)
+
+	resp.Auth = auth
+
+	return resp, nil
+}
