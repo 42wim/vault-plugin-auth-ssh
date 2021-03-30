@@ -2,7 +2,6 @@ package sshauth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -186,7 +185,7 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 	// Create a new entry object if this is a CreateOperation
 	if role == nil {
 		if req.Operation == logical.UpdateOperation {
-			return nil, errors.New("role entry not found during update operation")
+			return logical.ErrorResponse("role entry not found during update operation"), nil
 		}
 
 		role = new(sshRole)
@@ -199,7 +198,7 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 	for idx, key := range role.PublicKeys {
 		certParsed, _, _, _, err := ssh.ParseAuthorizedKey([]byte(key))
 		if err != nil {
-			return nil, fmt.Errorf("public_keys parsing failed: %s", err)
+			return logical.ErrorResponse("public_keys parsing failed: %s", err), nil
 		}
 
 		role.PublicKeys[idx] = strings.TrimRight(string(ssh.MarshalAuthorizedKey(certParsed)), "\n")
@@ -210,7 +209,7 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 	}
 
 	if len(role.Principals) > 0 && len(role.PublicKeys) > 0 {
-		return nil, errors.New("public_keys and principals option are mutually exclusive")
+		return logical.ErrorResponse("public_keys and principals option are mutually exclusive"), nil
 	}
 
 	if err = role.ParseTokenFields(req, data); err != nil {
