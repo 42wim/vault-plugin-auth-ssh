@@ -19,6 +19,7 @@ This plugin allows for SSH public keys and SSH certificates to authenticate with
       - [SSH certificate](#ssh-certificate-1)
       - [SSH public key](#ssh-public-key)
     - [Creating signatures](#creating-signatures)
+    - [Using ssh-agent](#using-ssh-agent)
 
 <!-- /TOC -->
 
@@ -207,3 +208,8 @@ With a pass
 ```sh
 $ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig id_rsa yourpass)
 ```
+
+### Using ssh-agent
+
+Signatures can also be created using ssh-agent.
+See the [vssh README](vssh/README.md) for an example of how to do that.
