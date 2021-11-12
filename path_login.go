@@ -3,7 +3,6 @@ package sshauth
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
@@ -16,7 +15,11 @@ func (b *backend) pathLogin() *framework.Path {
 		Fields: map[string]*framework.FieldSchema{
 			"role": {
 				Type:        framework.TypeString,
-				Description: "role to use (name must exist in the certificate principal)",
+				Description: "Role to use",
+			},
+			"metadata": {
+				Type:        framework.TypeKVPairs,
+				Description: "Keys and values to set for alias metadata",
 			},
 			"cert": {
 				Type:        framework.TypeString,
@@ -45,21 +48,6 @@ func (b *backend) pathLogin() *framework.Path {
 			},
 		},
 	}
-}
-
-func (b *backend) pathLoginAliasLookahead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	role := d.Get("role").(string)
-	if role == "" {
-		return nil, fmt.Errorf("missing role")
-	}
-
-	return &logical.Response{
-		Auth: &logical.Auth{
-			Alias: &logical.Alias{
-				Name: role,
-			},
-		},
-	}, nil
 }
 
 func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
@@ -156,18 +144,26 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 		}
 	}
 
+	metadata := map[string]string{}
+	if metadataRaw, ok := data.GetOk("metadata"); ok {
+		for key, value := range metadataRaw.(map[string]string) {
+			metadata[key] = value
+		}
+	}
+	// Set role last in case need to override something user set
+	metadata["role"] = roleName
+
 	// Compose the response
 	resp := &logical.Response{}
 	auth := &logical.Auth{
 		InternalData: map[string]interface{}{
 			"role": roleName,
 		},
-		Metadata: map[string]string{
-			"role": roleName,
-		},
+		Metadata:    metadata,
 		DisplayName: roleName,
 		Alias: &logical.Alias{
-			Name: roleName,
+			Name:     roleName,
+			Metadata: metadata,
 		},
 	}
 

@@ -18,6 +18,7 @@ This plugin allows for SSH public keys and SSH certificates to authenticate with
     - [Logging in](#logging-in)
       - [SSH certificate](#ssh-certificate-1)
       - [SSH public key](#ssh-public-key)
+      - [Using templated policies](#using-templated-policies)
     - [Creating signatures](#creating-signatures)
     - [Using ssh-agent](#using-ssh-agent)
 
@@ -178,6 +179,28 @@ identity_policies    []
 policies             ["default" "ssh-policy"]
 token_meta_role      ubuntu
 ```
+
+#### Using templated policies
+
+This plugin makes aliases available for use in vault
+[templated policies](https://www.vaultproject.io/docs/concepts/policies#templated-policies).
+These can be used to limit what secrets a policy makes available while
+sharing one policy between multiple roles.
+The defined role is always available in policies as
+`{{identity.entity.aliases.<mount accessor>.name}}`.
+In addition, a login can add any metadata keys with values to further
+limit secrets paths via the `metadata` parameter available as
+`{{identity.entity.aliases.<mount accessor>.metadata.<metadata key>}}`.
+The metadata parameter is a mapping of keys to values which should be
+input as JSON, for example:
+
+For example
+```sh
+echo '{ "metadata": { "key1" : "val1", "key2": "val2" } }' | \
+  vault write auth/ssh/login role=<role> public_key=@<publickey> nonce=<nonce> signature=<signature> -
+```
+will create the metadata keys "key1" and key2" with values "val1" and
+"val2", respectively.
 
 ### Creating signatures
 
