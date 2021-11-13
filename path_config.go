@@ -15,6 +15,11 @@ func (b *backend) pathConfig() *framework.Path {
 				Type:        framework.TypeCommaStringSlice,
 				Description: `SSH CA public keys where ssh certificates are checked against.`,
 			},
+			"secure_nonce": {
+				Type:        framework.TypeBool,
+				Description: `Whether to use secure nonce generation.`,
+				Default:     true,
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -67,6 +72,7 @@ func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, d *f
 	resp := &logical.Response{
 		Data: map[string]interface{}{
 			"ssh_ca_public_keys": config.SSHCAPublicKeys,
+			"secure_nonce":       config.SecureNonce,
 		},
 	}
 
@@ -76,6 +82,7 @@ func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, d *f
 func (b *backend) pathConfigWrite(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	config := &ConfigEntry{
 		SSHCAPublicKeys: d.Get("ssh_ca_public_keys").([]string),
+		SecureNonce:     d.Get("secure_nonce").(bool),
 	}
 
 	entry, err := logical.StorageEntryJSON("config", config)

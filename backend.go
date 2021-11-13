@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -19,12 +21,15 @@ const (
 // backend wraps the backend framework and adds a map for storing key value pairs.
 type backend struct {
 	*framework.Backend
+	nonces    map[string]time.Time
+	nonceLock sync.RWMutex
 }
 
 type ConfigEntry struct {
 	tokenutil.TokenParams
 
 	SSHCAPublicKeys []string `json:"ssh_ca_public_keys"`
+	SecureNonce     bool     `json:"secure_nonce"`
 }
 
 var _ logical.Factory = Factory
@@ -54,6 +59,7 @@ func newBackend() *backend {
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login",
+				"nonce",
 			},
 			SealWrapStorage: []string{
 				"config",
@@ -62,12 +68,16 @@ func newBackend() *backend {
 		Paths: framework.PathAppend(
 			[]*framework.Path{
 				b.pathLogin(),
+				b.pathNonce(),
 				b.pathConfig(),
 				b.pathRoleList(),
 				b.pathRole(),
 			},
 		),
+		PeriodicFunc: b.periodicFunc,
 	}
+
+	b.nonces = make(map[string]time.Time)
 
 	return b
 }
@@ -97,6 +107,12 @@ func (b *backend) pathAuthRenew(ctx context.Context, req *logical.Request, d *fr
 	resp.Auth.Period = role.TokenPeriod
 
 	return resp, nil
+}
+
+func (b *backend) periodicFunc(ctx context.Context, req *logical.Request) error {
+	b.nonceCleanup()
+
+	return nil
 }
 
 const (
