@@ -160,7 +160,7 @@ token_meta_role      ubuntu
 #### SSH public key
 
 ```sh
-vault write auth/ssh/login role=<role> public_key=@<publickey> nonce=<base64encoded randomdata> signature=<base64encoded ssh signature over random data>
+vault write auth/ssh/login role=<role> public_key=@<publickey> nonce=<base64encoded time in bytes> signature=<base64encoded ssh signature over nonce>
 ```
 
 For example
@@ -195,10 +195,12 @@ The metadata parameter is a mapping of keys to values which should be
 input as JSON, for example:
 
 For example
+
 ```sh
 echo '{ "metadata": { "key1" : "val1", "key2": "val2" } }' | \
   vault write auth/ssh/login role=<role> public_key=@<publickey> nonce=<nonce> signature=<signature> -
 ```
+
 will create the metadata keys "key1" and key2" with values "val1" and
 "val2", respectively.
 
