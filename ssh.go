@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/crypto/ssh"
@@ -143,4 +144,11 @@ func verifyRSA(key *rsa.PublicKey, nonce, signature []byte) bool {
 	digest := h.Sum(nil)
 
 	return rsa.VerifyPKCS1v15(key, hash, digest, signature) == nil
+}
+
+func validNonceTime(nonce []byte) bool {
+	t := time.Time{}
+	t.UnmarshalBinary(nonce)
+
+	return time.Since(t) <= time.Second*30
 }
