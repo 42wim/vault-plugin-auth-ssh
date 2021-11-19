@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func genSig(privatekey, password, nonce string) {
+func genSig(nonce, privatekey, password string) {
 	var (
 		signer ssh.Signer
 		err    error
@@ -50,13 +50,14 @@ func genSig(privatekey, password, nonce string) {
 }
 
 func printHelp() {
-	fmt.Println("This tool will print out a signature and nonce to be used with vault-plugin-auth-ssh")
+	fmt.Println("This tool will print out a signature based on a nonce to be used with vault-plugin-auth-ssh")
+	fmt.Println("You can get a nonce by running \"vault read auth/ssh/nonce\"")
 	fmt.Println("")
-	fmt.Println("Need " + os.Args[0] + " <key-path> <password>")
-	fmt.Println("eg. " + os.Args[0] + " ~/.ssh/id_rsa mypassword")
+	fmt.Println("Need " + os.Args[0] + " <nonce> <key-path> <password>")
+	fmt.Println("eg. " + os.Args[0] + " anonce ~/.ssh/id_rsa mypassword")
 	fmt.Println("")
 	fmt.Println("If you don't have a password just omit it")
-	fmt.Println("eg. " + os.Args[0] + " ~/.ssh/id_rsa")
+	fmt.Println("eg. " + os.Args[0] + " anonce ~/.ssh/id_rsa")
 }
 
 func main() {
