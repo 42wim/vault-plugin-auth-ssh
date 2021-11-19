@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func genSig(privatekey, password string) {
+func genSig(privatekey, password, nonce string) {
 	var (
 		signer ssh.Signer
 		err    error
@@ -32,18 +32,21 @@ func genSig(privatekey, password string) {
 		signer, err = ssh.ParsePrivateKeyWithPassphrase(pemBytes, []byte(password))
 	}
 
-	t := time.Now()
-	timeBytes, _ := t.MarshalBinary()
-
 	var signBytes []byte
 
-	signBytes = append(signBytes, timeBytes...)
+	if nonce == "" {
+		t := time.Now()
+		timeBytes, _ := t.MarshalBinary()
+		signBytes = append(signBytes, timeBytes...)
+	} else {
+		signBytes = append(signBytes, []byte(nonce)...)
+	}
+
 	res, _ := signer.Sign(rand.Reader, signBytes)
 
 	signatureBlob := res.Blob
 
 	fmt.Println("signature=" + base64.StdEncoding.EncodeToString(signatureBlob) + " nonce=" + base64.StdEncoding.EncodeToString(signBytes))
-
 }
 
 func printHelp() {
@@ -59,9 +62,11 @@ func printHelp() {
 func main() {
 	switch len(os.Args) {
 	case 2:
-		genSig(os.Args[1], "")
+		genSig(os.Args[1], "", "")
 	case 3:
-		genSig(os.Args[1], os.Args[2])
+		genSig(os.Args[1], os.Args[2], "")
+	case 4:
+		genSig(os.Args[1], os.Args[2], os.Args[3])
 	default:
 		printHelp()
 	}

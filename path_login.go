@@ -125,9 +125,8 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 		toParseKey = pubkey
 	}
 
-	// stop replay attacks
-	if !validNonceTime(nonceDecode) {
-		return logical.ErrorResponse("nonce time expired"), nil
+	if !b.nonceValidate(config, nonceDecode) {
+		return logical.ErrorResponse("nonce time expired or invalid"), nil
 	}
 
 	pk, err := parsePubkey(toParseKey)
