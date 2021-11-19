@@ -1,0 +1,37 @@
+release:
+  prerelease: auto
+  name_template: "{{.ProjectName}} v{{.Version}}"
+
+builds:
+- id: vault-plugin-auth-ssh
+  main: ./cmd/vault-plugin-auth-ssh
+  env:
+    - CGO_ENABLED=0
+  goos:
+    - freebsd
+    - windows
+    - darwin
+    - linux
+    - netbsd
+    - openbsd
+  goarch:
+    - amd64
+    - arm
+    - arm64
+    - 386
+  goarm:
+    - 6
+    - 7
+
+archives:
+  -
+    id: vault-plugin-auth-ssh
+    builds:
+    - vault-plugin-auth-ssh
+    name_template: "{{ .Binary }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    format: binary
+    files:
+      - none*
+
+checksum:
+  name_template: 'checksums.txt'
