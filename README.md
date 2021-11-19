@@ -12,6 +12,8 @@ This plugin allows for SSH public keys and SSH certificates to authenticate with
     - [Dev setup](#dev-setup)
   - [Using the plugin](#using-the-plugin)
     - [Global configuration](#global-configuration)
+      - [ssh_ca_public_keys](#ssh_ca_public_keys)
+      - [secure_nonce](#secure_nonce)
     - [Roles](#roles)
       - [SSH certificate](#ssh-certificate)
       - [SSH public keys](#ssh-public-keys)
@@ -68,6 +70,8 @@ Look into the `devsetup.sh` script, this will build the plugin, build certsig an
 
 ### Global configuration
 
+#### ssh_ca_public_keys
+
 If you want to use ssh certificates you'll need to configure the ssh CA's which the certificates will validate against.
 
 sshca in this example is a file containing your SSH CA. You can specify multiple CA's.
@@ -78,8 +82,17 @@ $ vault write auth/ssh/config ssh_ca_public_keys=@sshca
 $ vault read auth/ssh/config
 Key                   Value
 ---                   -----
+secure_nonce          true
 ssh_ca_public_keys    [ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDrLFN/LCDOjPw327hWfHXMOk9+GmP+pOl2JEG7eSfkzwVhumDU12swjnPQ9H1tZVWzcfufTg+PgMd/hP19ADkRxQ2CTbz7YUPdD6LvJOCRK8TK+tKliaFL9/lWFtlitERyk91ZSqGbROjtCyGlnetxY1+tF5NqLFtQ1tsPrxjjdRQoUMHlF8yv/VUxMOCjAmuqxKrEl5mfZJcnYpnfEBgWoZNTKAXkp6KJWLAxyiHPVTt7azyMzivCTZc8eCKXIInRpOMR7TvHGxPG8tHn2XrI01ni9zXQ+xG1sqxecPBSWU8fekKxwg5bikrWw4/9kCNvxrwBpf1IzlIKhugig8MP3+Jlrjp5BFXFuaQatIk6zLMkzDpE/iZwDZv5qicXdLK/nbKHmGqFWupcvfHUe6rh16TOYFbpnRMOEvTYpR/PfLlnQKcbkQgbDR01N8DfLetxt635C+ANU4N1ebQqjKkwb8ZPr2ryF/Y8Z1PV0x5H25r8UZyoGAXIsP3zkP0Ev40Bx3umlU/jR8nF6QQmXdbs2McfZFO2g0VsXSzUOR0L5s5Sd/uoUCcpz9nmKlgRIqHIhVGF3+FjrIaj3tXT7ucyPAsVVk/l4yhMQSuNtFi0eqZRPcdMiKff5W9PfVyEkpXTcSFweGPdVehZxPnM7DfH7axpg73OLWxvwVzkah31WQ==]
 ```
+
+#### secure_nonce
+
+By default the `secure_nonce` config option is enabled.
+This means vault will generate a nonce for you with a lifetime of 30 seconds.  
+You can get this nonce by doing `vault read auth/ssh/nonce` the resulting nonce must be used to create a signature over. (see [Creating signatures](#creating-signatures))
+
+If you disable `secure_nonce` you can use timebased nonces. (this is a possible security risk)
 
 ### Roles
 
@@ -137,7 +150,8 @@ token_type                 default
 #### SSH certificate
 
 ```sh
-vault write auth/ssh/login role=<role> cert=@<certfile> nonce=<base64encoded randomdata> signature=<base64encoded ssh signature over random data>
+nonce=$(vault read -field nonce auth/ssh/nonce)
+vault write auth/ssh/login role=<role> cert=@<certfile> nonce=$nonce signature=<base64encoded ssh signature over $nonce>
 ```
 
 For example
@@ -157,10 +171,13 @@ policies             ["default" "ssh-policy"]
 token_meta_role      ubuntu
 ```
 
+See [Creating signatures](#creating-signatures) about how to create those.
+
 #### SSH public key
 
 ```sh
-vault write auth/ssh/login role=<role> public_key=@<publickey> nonce=<base64encoded time in bytes> signature=<base64encoded ssh signature over nonce>
+nonce=$(vault read -field nonce auth/ssh/nonce)
+vault write auth/ssh/login role=<role> public_key=@<publickey> nonce=$nonce signature=<base64encoded ssh signature over $nonce>
 ```
 
 For example
@@ -179,6 +196,8 @@ identity_policies    []
 policies             ["default" "ssh-policy"]
 token_meta_role      ubuntu
 ```
+
+See [Creating signatures](#creating-signatures) about how to create those.
 
 #### Using templated policies
 
@@ -209,29 +228,31 @@ will create the metadata keys "key1" and key2" with values "val1" and
 For now you can use the [createsig](createsig/README.md) tool to generate your signature and nonce.
 
 ```text
-This tool will print out a signature and nonce to be used with vault-plugin-auth-ssh
+This tool will print out a signature based on a nonce to be used with vault-plugin-auth-ssh
 
-Need createsig <key-path> <password>
-eg. createsig id_rsa mypassword
+Need createsig <nonce> <key-path> <password>
+eg. createsig 5f780af8-75ff-f209-cd31-500879e18640 id_rsa mypassword
 
 If you don't have a password just omit it
-eg. createsig id_rsa
+eg. createsig 5f780af8-75ff-f209-cd31-500879e18640 id_rsa
 ```
+
+You must get the nonce from `vault read auth/ssh/nonce`
 
 For example:
 
 ```sh
-$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig id_rsa)
+$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(vault read -field nonce auth/ssh/nonce) vaultid_rsa)
 ```
 
 ```sh
-$ vault write auth/ssh/login role=ubuntu cert=@id_rsa-cert.pub $(createsig id_rsa)
+$ vault write auth/ssh/login role=ubuntu cert=@id_rsa-cert.pub $(createsig $(vault read -field nonce auth/ssh/nonce) id_rsa)
 ```
 
 With a pass
 
 ```sh
-$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig id_rsa yourpass)
+$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(vault read -field nonce auth/ssh/nonce) id_rsa yourpass)
 ```
 
 ### Using ssh-agent
