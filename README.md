@@ -237,4 +237,5 @@ $ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig id_r
 ### Using ssh-agent
 
 Signatures can also be created using ssh-agent.
-See the [vssh README](vssh/README.md) for an example of how to do that.
+See the [vssh README](vssh/README.md) and [pylogin README](pylogin/README.md)
+for examples of how to do that.
