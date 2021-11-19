@@ -42,7 +42,12 @@ func main() {
 		log.Fatalf("no ssh key found: %s", err)
 	}
 
-	token, err := getToken(role, signer)
+	nonce, err := getNonce()
+	if err != nil {
+		log.Fatalf("nonce failed: %s", err)
+	}
+
+	token, err := getToken(nonce, role, signer)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -50,19 +55,32 @@ func main() {
 	fmt.Println(token)
 }
 
-func getToken(role string, signer ssh.Signer) (string, error) {
+func getNonce() (string, error) {
 	v, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		return "", err
 	}
 
-	// we use the current time as nonce
-	t := time.Now()
-	timeBytes, _ := t.MarshalBinary()
+	// now login
+	secret, err := v.Logical().Read("auth/ssh/nonce")
+	if err != nil {
+		return "", err
+	}
 
-	var signBytes []byte
+	if secret == nil {
+		return "", fmt.Errorf("empty response from credential provider")
+	}
 
-	signBytes = append(signBytes, timeBytes...)
+	return secret.Data["nonce"].(string), nil
+}
+
+func getToken(nonce, role string, signer ssh.Signer) (string, error) {
+	v, err := api.NewClient(api.DefaultConfig())
+	if err != nil {
+		return "", err
+	}
+
+	signBytes := []byte(nonce)
 
 	// now sign this with our private key of the certificate
 	res, _ := signer.Sign(rand.Reader, signBytes)
@@ -122,8 +140,6 @@ func findCertSigner(sshsigners []ssh.Signer, principal string) ssh.Signer {
 				return s
 			}
 		}
-
-		return s
 	}
 
 	return nil
