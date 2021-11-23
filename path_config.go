@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
 func (b *backend) pathConfig() *framework.Path {
-	return &framework.Path{
+	p := &framework.Path{
 		Pattern: `config`,
 		Fields: map[string]*framework.FieldSchema{
 			"ssh_ca_public_keys": {
@@ -38,6 +39,10 @@ func (b *backend) pathConfig() *framework.Path {
 		HelpSynopsis:    confHelpSyn,
 		HelpDescription: confHelpDesc,
 	}
+
+	tokenutil.AddTokenFields(p.Fields)
+
+	return p
 }
 
 func (b *backend) config(ctx context.Context, s logical.Storage) (*ConfigEntry, error) {
@@ -59,7 +64,7 @@ func (b *backend) config(ctx context.Context, s logical.Storage) (*ConfigEntry, 
 	return config, nil
 }
 
-func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
@@ -69,20 +74,26 @@ func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, d *f
 		return nil, nil
 	}
 
-	resp := &logical.Response{
-		Data: map[string]interface{}{
-			"ssh_ca_public_keys": config.SSHCAPublicKeys,
-			"secure_nonce":       config.SecureNonce,
-		},
+	d := map[string]interface{}{
+		"ssh_ca_public_keys": config.SSHCAPublicKeys,
+		"secure_nonce":       config.SecureNonce,
 	}
 
-	return resp, nil
+	config.PopulateTokenData(d)
+
+	return &logical.Response{
+		Data: d,
+	}, nil
 }
 
 func (b *backend) pathConfigWrite(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	config := &ConfigEntry{
 		SSHCAPublicKeys: d.Get("ssh_ca_public_keys").([]string),
 		SecureNonce:     d.Get("secure_nonce").(bool),
+	}
+
+	if err := config.ParseTokenFields(req, d); err != nil {
+		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
 	}
 
 	entry, err := logical.StorageEntryJSON("config", config)

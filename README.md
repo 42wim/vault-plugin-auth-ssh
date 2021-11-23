@@ -70,6 +70,10 @@ Look into the `devsetup.sh` script, this will build the plugin, build certsig an
 
 ### Global configuration
 
+You may optionally set any of the
+[standard Vault token parameters](https://pkg.go.dev/github.com/hashicorp/vault/sdk/helper/tokenutil#TokenParams)
+which will be used as defaults if not overridden in a role.
+
 #### ssh_ca_public_keys
 
 If you want to use ssh certificates you'll need to configure the ssh CA's which the certificates will validate against.
@@ -84,6 +88,15 @@ Key                   Value
 ---                   -----
 secure_nonce          true
 ssh_ca_public_keys    [ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDrLFN/LCDOjPw327hWfHXMOk9+GmP+pOl2JEG7eSfkzwVhumDU12swjnPQ9H1tZVWzcfufTg+PgMd/hP19ADkRxQ2CTbz7YUPdD6LvJOCRK8TK+tKliaFL9/lWFtlitERyk91ZSqGbROjtCyGlnetxY1+tF5NqLFtQ1tsPrxjjdRQoUMHlF8yv/VUxMOCjAmuqxKrEl5mfZJcnYpnfEBgWoZNTKAXkp6KJWLAxyiHPVTt7azyMzivCTZc8eCKXIInRpOMR7TvHGxPG8tHn2XrI01ni9zXQ+xG1sqxecPBSWU8fekKxwg5bikrWw4/9kCNvxrwBpf1IzlIKhugig8MP3+Jlrjp5BFXFuaQatIk6zLMkzDpE/iZwDZv5qicXdLK/nbKHmGqFWupcvfHUe6rh16TOYFbpnRMOEvTYpR/PfLlnQKcbkQgbDR01N8DfLetxt635C+ANU4N1ebQqjKkwb8ZPr2ryF/Y8Z1PV0x5H25r8UZyoGAXIsP3zkP0Ev40Bx3umlU/jR8nF6QQmXdbs2McfZFO2g0VsXSzUOR0L5s5Sd/uoUCcpz9nmKlgRIqHIhVGF3+FjrIaj3tXT7ucyPAsVVk/l4yhMQSuNtFi0eqZRPcdMiKff5W9PfVyEkpXTcSFweGPdVehZxPnM7DfH7axpg73OLWxvwVzkah31WQ==]
+token_bound_cidrs          []
+token_explicit_max_ttl     0s
+token_max_ttl              0s
+token_no_default_policy    false
+token_num_uses             0
+token_period               0s
+token_policies             []
+token_ttl                  0s
+token_type                 default
 ```
 
 #### secure_nonce
@@ -96,7 +109,11 @@ If you disable `secure_nonce` you can use timebased nonces. (this is a possible 
 
 ### Roles
 
-You can create / list / delete roles which are used to link your certificate or public keys to vault policies.
+You can create / list / delete roles which are used to link your certificate or public keys to Vault policies.
+
+You may optionally set any of the
+[standard Vault token parameters](https://pkg.go.dev/github.com/hashicorp/vault/sdk/helper/tokenutil#TokenParams)
+to override default values.
 
 #### SSH certificate
 
@@ -143,6 +160,35 @@ token_period               0s
 token_policies             [ssh-policy]
 token_ttl                  0s
 token_type                 default
+```
+
+#### SSH public key self-registration
+
+If your Vault has another authentication method that users can use,
+perhaps one that requires more user interaction such as 
+[OIDC authentication](https://learn.hashicorp.com/tutorials/vault/oidc-auth),
+it is possible to use that other authentication method to securely
+enable users to register their own public keys for SSH authentication.
+
+First, configure default standard token parameters for SSH
+authentication as above, so users do not have to choose them,
+especially the `token_policies` parameter.
+Next, configure the other authentication method with a policy that
+enables writing public keys to the `auth/ssh/role` path but doesn't
+allow other parameters. 
+For example use a
+[templated policy](https://www.vaultproject.io/docs/concepts/policies#templated-policies)
+like this:
+```
+path "auth/ssh/role/{{identity.entity.aliases.<mount accessor>.name}}" {
+    capabilities = ["create", "update"]
+    denied_parameters = {
+        "public_keys"   = ["@*"]
+    }
+    allowed_parameters = {
+        "public_keys"    = []
+    }
+}
 ```
 
 ### Logging in
@@ -201,7 +247,7 @@ See [Creating signatures](#creating-signatures) about how to create those.
 
 #### Using templated policies
 
-This plugin makes aliases available for use in vault
+This plugin makes aliases available for use in Vault
 [templated policies](https://www.vaultproject.io/docs/concepts/policies#templated-policies).
 These can be used to limit what secrets a policy makes available while
 sharing one policy between multiple roles.
