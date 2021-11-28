@@ -189,6 +189,13 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 		}
 
 		role = new(sshRole)
+
+		// set defaults for token parameters
+		config, err := b.config(ctx, req.Storage)
+		if err != nil {
+			return nil, err
+		}
+		role.TokenParams = config.TokenParams
 	}
 
 	if publicKeys, ok := data.GetOk("public_keys"); ok {
