@@ -195,7 +195,10 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 		if err != nil {
 			return nil, err
 		}
-		role.TokenParams = config.TokenParams
+
+		if config != nil {
+			role.TokenParams = config.TokenParams
+		}
 	}
 
 	if publicKeys, ok := data.GetOk("public_keys"); ok {

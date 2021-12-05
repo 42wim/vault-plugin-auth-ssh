@@ -1,0 +1,28 @@
+name: Development
+on: [push, pull_request]
+jobs:
+  test-build-upload:
+    strategy:
+      matrix:
+        go-version: [1.17.x]
+        platform: [ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+        stable: false
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+          fetch-depth: 0
+    - name: Test
+      run: go test ./...
+    - name: Build
+      run: |
+        mkdir -p output/{win,lin,mac}
+        VERSION=$(git describe --tags)
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o output/lin/vault-plugin-auth-ssh cmd/vault-plugin-auth-ssh/main.go
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o output/win/vault-plugin-auth-ssh cmd/vault-plugin-auth-ssh/main.go
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o output/mac/vault-plugin-auth-ssh cmd/vault-plugin-auth-ssh/main.go
