@@ -42,10 +42,54 @@ func validatePubkey(pubkey string, role *sshRole) error {
 	return nil
 }
 
-func validateCert(pubkey ssh.PublicKey, config *ConfigEntry, principals []string) error {
+// Detect the first valid principal from the certificate, if any is present
+func detectPrincipal(pubkey ssh.PublicKey, validPrincipals []string) string {
+	cert, ok := pubkey.(*ssh.Certificate)
+	if !ok {
+		// Not a certificate - no principal to detect
+		return ""
+	}
+
+	if len(cert.ValidPrincipals) == 0 {
+		// Certificate is not valid for any principal
+		return ""
+	}
+
+	// Return the first valid principal found in the certificate
+	for _, p := range validPrincipals {
+		for _, vp := range cert.ValidPrincipals {
+			if p == vp || vp == "*" {
+				return p
+			}
+		}
+	}
+
+	// No valid principal was found in the certificate
+	return ""
+}
+
+func validatePrincipal(principal string, validPrincipals []string) error {
+	if principal == "*" || principal == "" {
+		return errors.New("invalid principal")
+	}
+
+	for _, vp := range validPrincipals {
+		if vp == principal || vp == "*" {
+			return nil
+		}
+	}
+
+	return errors.New("no matching principal found")
+}
+
+func validateCert(pubkey ssh.PublicKey, principal string, config *ConfigEntry) error {
 	cert, ok := pubkey.(*ssh.Certificate)
 	if !ok {
 		return errors.New("not a certificate")
+	}
+
+	if len(cert.ValidPrincipals) == 0 {
+		return errors.New("refusing certificate without principal list")
 	}
 
 	c := &ssh.CertChecker{
@@ -68,22 +112,6 @@ func validateCert(pubkey ssh.PublicKey, config *ConfigEntry, principals []string
 	// check the CA of the cert
 	if !c.IsUserAuthority(cert.SignatureKey) {
 		return errors.New("CA doesn't match")
-	}
-
-	principal := ""
-
-	for _, p := range principals {
-		for _, vp := range cert.ValidPrincipals {
-			if p == vp {
-				principal = p
-
-				break
-			}
-		}
-	}
-
-	if principal == "" {
-		return errors.New("no matching principal found")
 	}
 
 	// check cert validity

@@ -41,7 +41,7 @@ func (b *backend) pathRole() *framework.Path {
 			},
 			"principals": {
 				Type:        framework.TypeCommaStringSlice,
-				Description: "Principals allowed for this role.",
+				Description: "Principals allowed for this role. A * means every principal is accepted.",
 			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
