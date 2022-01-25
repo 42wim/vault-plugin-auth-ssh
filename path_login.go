@@ -37,6 +37,10 @@ func (b *backend) pathLogin() *framework.Path {
 				Type:        framework.TypeString,
 				Description: "Nonce (base64 encoded)",
 			},
+			"username": {
+				Type:        framework.TypeString,
+				Description: "Principal to use when authenticating using ssh certificate (otherwise autodiscovered)",
+			},
 		},
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.UpdateOperation: &framework.PathOperation{
@@ -74,11 +78,11 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 		return logical.ErrorResponse("role %q could not be found", roleName), nil
 	}
 
-	principals := []string{roleName}
+	validPrincipals := []string{roleName}
 
 	// if we have explicit principals we must check those
 	if len(role.Principals) > 0 {
-		principals = role.Principals
+		validPrincipals = role.Principals
 	}
 
 	if len(role.TokenBoundCIDRs) > 0 {
@@ -138,10 +142,27 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 		return logical.ErrorResponse(err.Error()), err
 	}
 
+	// Name for the logical.Alias to set
+	aliasName := roleName
+
 	if cert != "" {
-		if err := validateCert(pk, config, principals); err != nil {
+		principal := data.Get("username").(string)
+
+		if principal == "" {
+			// Select the first valid principal in the certificate, if any listed
+			principal = detectPrincipal(pk, validPrincipals)
+		}
+
+		if err := validatePrincipal(principal, validPrincipals); err != nil {
 			return logical.ErrorResponse("validation cert failed: " + err.Error()), err
 		}
+
+		if err := validateCert(pk, principal, config); err != nil {
+			return logical.ErrorResponse("validation cert failed: " + err.Error()), err
+		}
+
+		// Take the principal as the alias name
+		aliasName = principal
 	} else {
 		if err := validatePubkey(pubkey, role); err != nil {
 			return logical.ErrorResponse("validation public_key failed: " + err.Error()), err
@@ -164,9 +185,9 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 			"role": roleName,
 		},
 		Metadata:    metadata,
-		DisplayName: roleName,
+		DisplayName: aliasName,
 		Alias: &logical.Alias{
-			Name:     roleName,
+			Name:     aliasName,
 			Metadata: metadata,
 		},
 	}
