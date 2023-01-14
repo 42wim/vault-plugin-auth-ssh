@@ -2,9 +2,6 @@ package sshauth
 
 import (
 	"bytes"
-	"crypto"
-	"crypto/ed25519"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"strings"
@@ -26,7 +23,6 @@ func validatePubkey(pubkey string, role *sshRole) error {
 
 	for _, key := range role.PublicKeys {
 		if key != pk {
-
 			continue
 		}
 
@@ -141,37 +137,12 @@ func verifySignature(pubkey ssh.PublicKey, nonce, signature []byte) error {
 		pubkey = cert.Key
 	}
 
-	cryptoPubkey := pubkey.(ssh.CryptoPublicKey).CryptoPublicKey()
-
-	switch key := cryptoPubkey.(type) {
-	case ed25519.PublicKey:
-		if !verifyEd25519(key, nonce, signature) {
-			return errors.New("signature verification failed")
-		}
-	case *rsa.PublicKey:
-		if !verifyRSA(key, nonce, signature) {
-			return errors.New("signature verification failed")
-		}
-	default:
-		return fmt.Errorf("invalid type %#v not supported", key)
+	sig := &ssh.Signature{
+		Format: pubkey.Type(),
+		Blob:   signature,
 	}
 
-	return nil
-}
-
-func verifyEd25519(key ed25519.PublicKey, nonce, signature []byte) bool {
-	return ed25519.Verify(key, nonce, signature)
-}
-
-func verifyRSA(key *rsa.PublicKey, nonce, signature []byte) bool {
-	hash := crypto.SHA1
-	h := hash.New()
-
-	h.Write(nonce)
-
-	digest := h.Sum(nil)
-
-	return rsa.VerifyPKCS1v15(key, hash, digest, signature) == nil
+	return pubkey.Verify(nonce, sig)
 }
 
 func validNonceTime(nonce []byte) bool {
