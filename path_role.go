@@ -29,7 +29,7 @@ func (b *backend) pathRoleList() *framework.Path {
 // pathRole returns the path configurations for the CRUD operations on roles
 func (b *backend) pathRole() *framework.Path {
 	p := &framework.Path{
-		Pattern: "role/" + framework.GenericNameRegex("name"),
+		Pattern: "role/" + framework.GenericNameWithAtRegex("name"),
 		Fields: map[string]*framework.FieldSchema{
 			"name": {
 				Type:        framework.TypeLowerCaseString,
