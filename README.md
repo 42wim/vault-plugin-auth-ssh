@@ -306,3 +306,34 @@ $ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(va
 Signatures can also be created using ssh-agent.
 See the [vssh README](vssh/README.md) and [pylogin README](pylogin/README.md)
 for examples of how to do that.
+
+### Running in Containerized Environments (Docker, Kubernetes, etc)
+
+Vault will attempt to lock its memory to avoid swapping unencrypted secrets to disk.
+
+This is explained in some detail here: [https://support.hashicorp.com/hc/en-us/articles/115012787688-Vault-and-mlock](https://support.hashicorp.com/hc/en-us/articles/115012787688-Vault-and-mlock)
+
+When running in Kubernetes, this is achieved by setting the _securityContext_ in the container spec by adding the following to the container definition:
+
+          securityContext:
+            capabilities:
+              add:
+                - IPC_LOCK
+
+However, this only gives the ability of a file to use mlock through Kubernetes.  The executable files themselves need this to be set as well.
+
+The Vault binary itself is distributed with the capabilities (which are stored via extensions on the file itself) enabled for Vault to use mlock.  Any _plugins_ however, must have this set as well to work outside of "dev mode" (which disables mlock).
+
+You can do this in your Dockerfile when creating your own images, or at any other point before Vault attempts to use the plugin.
+
+When creating container images using Vault plugins like this one, be sure to add the following steps to your Dockerfile:
+
+    RUN chown vault:vault /path/to/vault-plugins/vault-plugin-auth-ssh
+
+    RUN chmod 700 /path/to/vault-plugins/vault-plugin-auth-ssh
+
+    RUN setcap cap_ipc_lock=+ep /path/to/vault-plugins/vault-plugin-auth-ssh
+
+Setting the owner/group and mode will prevent problems when using setting `VAULT_ENABLE_FILE_PERMISSIONS_CHECK` to true.
+
+Running the final `setcap` command will allow the plugin to function when Vault is using mlock.
