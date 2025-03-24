@@ -43,6 +43,10 @@ func (b *backend) pathRole() *framework.Path {
 				Type:        framework.TypeCommaStringSlice,
 				Description: "Principals allowed for this role. A * means every principal is accepted.",
 			},
+			"rsa_algo_signer": {
+				Type:        framework.TypeLowerCaseString,
+				Description: "RSA signature algorithm to pick: ssh-rsa, rsa-sha2-256 or rsa-sha2-512 (default rsa-sha2-256).",
+			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -80,8 +84,9 @@ func (b *backend) pathRole() *framework.Path {
 type sshRole struct {
 	tokenutil.TokenParams
 
-	PublicKeys []string `json:"public_keys"`
-	Principals []string `json:"principals"`
+	PublicKeys    []string `json:"public_keys"`
+	Principals    []string `json:"principals"`
+	RSAAlgoSigner string   `json:"rsa_algo_signer"`
 }
 
 // role takes a storage backend and the name and returns the role's storage
@@ -142,8 +147,9 @@ func (b *backend) pathRoleRead(ctx context.Context, req *logical.Request, data *
 
 	// Create a map of data to be returned
 	d := map[string]interface{}{
-		"principals":  role.Principals,
-		"public_keys": role.PublicKeys,
+		"principals":      role.Principals,
+		"public_keys":     role.PublicKeys,
+		"rsa_algo_signer": role.RSAAlgoSigner,
 	}
 
 	role.PopulateTokenData(d)
@@ -198,6 +204,17 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 
 		if config != nil {
 			role.TokenParams = config.TokenParams
+		}
+	}
+
+	if rsaAlgo, ok := data.GetOk("rsa_algo_signer"); ok {
+		switch rsaAlgo.(string) {
+		case ssh.KeyAlgoRSA, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512:
+			role.RSAAlgoSigner = rsaAlgo.(string)
+		case "default", "":
+			role.RSAAlgoSigner = ssh.KeyAlgoRSASHA256
+		default:
+			return logical.ErrorResponse("rsa_algo_signer only supports: %s, %s, %s, %s", ssh.KeyAlgoRSA, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, "default"), nil
 		}
 	}
 
