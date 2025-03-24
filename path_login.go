@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/logical"
+	"golang.org/x/crypto/ssh"
 )
 
 func (b *backend) pathLogin() *framework.Path {
@@ -102,8 +103,13 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 	}
 
 	cert := data.Get("cert").(string)
-
 	pubkey := data.Get("public_key").(string)
+
+	rsa_algo_signer := role.RSAAlgoSigner
+	// backwards compatible: do not break existing roles without a algorithm
+	if rsa_algo_signer == "" {
+		rsa_algo_signer = ssh.KeyAlgoRSA
+	}
 
 	if pubkey == "" && cert == "" {
 		return logical.ErrorResponse("cert or pubkey must be provided"), nil
@@ -138,7 +144,7 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 		return logical.ErrorResponse("decoding public_key/cert failed: " + err.Error()), err
 	}
 
-	if err := verifySignature(pk, nonceDecode, sigDecode); err != nil {
+	if err := verifySignature(pk, nonceDecode, sigDecode, rsa_algo_signer); err != nil {
 		return logical.ErrorResponse(err.Error()), err
 	}
 

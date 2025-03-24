@@ -82,8 +82,24 @@ func getToken(nonce, role string, signer ssh.Signer) (string, error) {
 
 	signBytes := []byte(nonce)
 
-	// now sign this with our private key of the certificate
-	res, _ := signer.Sign(rand.Reader, signBytes)
+	var res *ssh.Signature
+
+	if signer.PublicKey().Type() == ssh.KeyAlgoRSA || signer.PublicKey().Type() == ssh.CertAlgoRSAv01 {
+		signeralgo, err := ssh.NewSignerWithAlgorithms(signer.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA})
+		if err != nil {
+			log.Fatalf("NewSignerWithAlgorithms failed: %s", err)
+		}
+
+		res, err = signeralgo.SignWithAlgorithm(rand.Reader, signBytes, ssh.KeyAlgoRSASHA256)
+		if err != nil {
+			log.Fatalf("SignWithAlgorithm failed: %s", err)
+		}
+	} else {
+		res, err = signer.Sign(rand.Reader, signBytes)
+		if err != nil {
+			log.Fatalf("Sign failed: %s", err)
+		}
+	}
 
 	signatureBlob := res.Blob
 

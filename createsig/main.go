@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func genSig(nonce, privatekey, password string) {
+func genSig(nonce, privatekey, password, rsa_algo_signer string) {
 	var (
 		signer ssh.Signer
 		err    error
@@ -42,7 +42,24 @@ func genSig(nonce, privatekey, password string) {
 		signBytes = append(signBytes, []byte(nonce)...)
 	}
 
-	res, _ := signer.Sign(rand.Reader, signBytes)
+	var res *ssh.Signature
+
+	if signer.PublicKey().Type() == ssh.KeyAlgoRSA {
+		signeralgo, err := ssh.NewSignerWithAlgorithms(signer.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA})
+		if err != nil {
+			log.Fatalf("NewSignerWithAlgorithms failed: %s", err)
+		}
+
+		res, err = signeralgo.SignWithAlgorithm(rand.Reader, signBytes, rsa_algo_signer)
+		if err != nil {
+			log.Fatalf("SignWithAlgorithm failed: %s", err)
+		}
+	} else {
+		res, err = signer.Sign(rand.Reader, signBytes)
+		if err != nil {
+			log.Fatalf("Sign failed: %s", err)
+		}
+	}
 
 	signatureBlob := res.Blob
 
@@ -63,11 +80,13 @@ func printHelp() {
 func main() {
 	switch len(os.Args) {
 	case 2:
-		genSig(os.Args[1], "", "")
+		genSig(os.Args[1], "", "", "")
 	case 3:
-		genSig(os.Args[1], os.Args[2], "")
+		genSig(os.Args[1], os.Args[2], "", "")
 	case 4:
-		genSig(os.Args[1], os.Args[2], os.Args[3])
+		genSig(os.Args[1], os.Args[2], os.Args[3], "")
+	case 5:
+		genSig(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 	default:
 		printHelp()
 	}

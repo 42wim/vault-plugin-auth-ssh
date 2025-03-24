@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/logging"
 	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
+	"golang.org/x/crypto/ssh"
 )
 
 func getBackend(t *testing.T) (logical.Backend, logical.Storage) {
@@ -78,6 +79,76 @@ func TestPath_Create(t *testing.T) {
 			t.Fatalf("err:%s resp:%#v\n", err, resp)
 		}
 		actual, err := b.(*backend).role(context.Background(), storage, "plugin-test")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(expected, actual) {
+			t.Fatalf("Unexpected role data: expected %#v\n got %#v\n", expected, actual)
+		}
+	})
+
+	t.Run("test rsa algo", func(t *testing.T) {
+		b, storage := getBackend(t)
+
+		data := map[string]interface{}{
+			"principals":      "ubuntu,ubuntu2",
+			"rsa_algo_signer": "rsa-sha2-512",
+		}
+
+		expected := &sshRole{
+			Principals:    []string{"ubuntu", "ubuntu2"},
+			PublicKeys:    []string(nil),
+			RSAAlgoSigner: ssh.KeyAlgoRSASHA512,
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/rsa-test",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%s resp:%#v\n", err, resp)
+		}
+		actual, err := b.(*backend).role(context.Background(), storage, "rsa-test")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(expected, actual) {
+			t.Fatalf("Unexpected role data: expected %#v\n got %#v\n", expected, actual)
+		}
+	})
+
+	t.Run("test rsa algo 2", func(t *testing.T) {
+		b, storage := getBackend(t)
+
+		data := map[string]interface{}{
+			"principals":      "ubuntu,ubuntu2",
+			"rsa_algo_signer": "default",
+		}
+
+		expected := &sshRole{
+			Principals:    []string{"ubuntu", "ubuntu2"},
+			PublicKeys:    []string(nil),
+			RSAAlgoSigner: ssh.KeyAlgoRSASHA256,
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/rsa-test",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%s resp:%#v\n", err, resp)
+		}
+		actual, err := b.(*backend).role(context.Background(), storage, "rsa-test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -196,8 +267,10 @@ func TestPath_Create(t *testing.T) {
 		b, storage := getBackend(t)
 		data := map[string]interface{}{
 			"policies": "test",
-			"public_keys": []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skL",
-				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skLX"},
+			"public_keys": []string{
+				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skL",
+				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skLX",
+			},
 		}
 
 		req := &logical.Request{

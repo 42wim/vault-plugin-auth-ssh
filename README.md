@@ -120,6 +120,11 @@ to override default values.
 Create a role with the policy `ssh-policy` bound to a certificate with the principal `ubuntu`.  
 (prerequisite: a SSH CA needs to be configured in auth/ssh/config)
 
+You can also specify a rsa_algo_signer, this will only be used if you're using RSA keys. 
+If not specified rsa-sha2-256 will be used as algorithm, this also means that your client needs to use this algorithm! 
+(when upgrading from an older version of this plugin that didn't have support for rsa_algo_signer, ssh-rsa will be picked for backwards compatibility)
+
+
 ```sh
 $ vault write auth/ssh/role/ubuntu token_policies="ssh-policy" principals="ubuntu"
 
@@ -128,6 +133,7 @@ Key                        Value
 ---                        -----
 principals                 [ubuntu]
 public_keys                <nil>
+rsa_algo_signer            rsa-sha2-256
 token_bound_cidrs          []
 token_explicit_max_ttl     0s
 token_max_ttl              0s
@@ -143,6 +149,10 @@ token_type                 default
 
 Create a role with the policy `ssh-policy` bound to a specific publickey.
 
+You can also specify a rsa_algo_signer, this will only be used if you're using RSA keys. 
+If not specified rsa-sha2-256 will be used as algorithm, this also means that your client needs to use this algorithm! 
+(when upgrading from an older version of this plugin that didn't have support for rsa_algo_signer, ssh-rsa will be picked for backwards compatibility)
+
 ```sh
 $ vault write auth/ssh/role/ubuntu token_policies="ssh-policy" public_keys=@sshkey.pub
 
@@ -151,6 +161,7 @@ Key                        Value
 ---                        -----
 principals                 <nil>
 public_keys                [ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skL]
+rsa_algo_signer            rsa-sha2-256
 token_bound_cidrs          []
 token_explicit_max_ttl     0s
 token_max_ttl              0s
@@ -276,11 +287,11 @@ For now you can use the [createsig](createsig/README.md) tool to generate your s
 ```text
 This tool will print out a signature based on a nonce to be used with vault-plugin-auth-ssh
 
-Need createsig <nonce> <key-path> <password>
-eg. createsig 5f780af8-75ff-f209-cd31-500879e18640 id_rsa mypassword
+Need createsig <nonce> <key-path> <password> <rsa_algorithm>
+eg. createsig 5f780af8-75ff-f209-cd31-500879e18640 id_rsa mypassword rsa-sha2-256
 
 If you don't have a password just omit it
-eg. createsig 5f780af8-75ff-f209-cd31-500879e18640 id_rsa
+eg. createsig 5f780af8-75ff-f209-cd31-500879e18640 id_rsa "" rsa-sha2-256
 ```
 
 You must get the nonce from `vault read auth/ssh/nonce`
@@ -288,17 +299,17 @@ You must get the nonce from `vault read auth/ssh/nonce`
 For example:
 
 ```sh
-$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(vault read -field nonce auth/ssh/nonce) vaultid_rsa)
+$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(vault read -field nonce auth/ssh/nonce) vaultid_rsa "" rsa-sha2-256)
 ```
 
 ```sh
-$ vault write auth/ssh/login role=ubuntu cert=@id_rsa-cert.pub $(createsig $(vault read -field nonce auth/ssh/nonce) id_rsa)
+$ vault write auth/ssh/login role=ubuntu cert=@id_rsa-cert.pub $(createsig $(vault read -field nonce auth/ssh/nonce) id_rsa "" rsa-sha2-256)
 ```
 
 With a pass
 
 ```sh
-$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(vault read -field nonce auth/ssh/nonce) id_rsa yourpass)
+$ vault write auth/ssh/login role=ubuntu public_key=@id_rsa.pub $(createsig $(vault read -field nonce auth/ssh/nonce) id_rsa yourpass rsa-sha2-256)
 ```
 
 ### Using ssh-agent

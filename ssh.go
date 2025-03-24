@@ -132,7 +132,7 @@ func parsePubkey(pubkey string) (ssh.PublicKey, error) {
 	return parsedPubkey, nil
 }
 
-func verifySignature(pubkey ssh.PublicKey, nonce, signature []byte) error {
+func verifySignature(pubkey ssh.PublicKey, nonce, signature []byte, rsa_algo string) error {
 	if cert, ok := pubkey.(*ssh.Certificate); ok {
 		pubkey = cert.Key
 	}
@@ -140,6 +140,10 @@ func verifySignature(pubkey ssh.PublicKey, nonce, signature []byte) error {
 	sig := &ssh.Signature{
 		Format: pubkey.Type(),
 		Blob:   signature,
+	}
+
+	if pubkey.Type() == ssh.KeyAlgoRSA || pubkey.Type() == ssh.CertAlgoRSAv01 {
+		sig.Format = rsa_algo
 	}
 
 	return pubkey.Verify(nonce, sig)
