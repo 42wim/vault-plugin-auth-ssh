@@ -44,11 +44,15 @@ func (b *backend) pathLogin() *framework.Path {
 		},
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.UpdateOperation: &framework.PathOperation{
-				Callback: b.handleLogin,
-				Summary:  "Log in using ssh certificates",
+				Callback:                    b.handleLogin,
+				Summary:                     "Log in using ssh certificates",
+				ForwardPerformanceStandby:   true,
+				ForwardPerformanceSecondary: true,
 			},
 			logical.AliasLookaheadOperation: &framework.PathOperation{
-				Callback: b.handleLogin,
+				Callback:                    b.handleLogin,
+				ForwardPerformanceStandby:   true,
+				ForwardPerformanceSecondary: true,
 			},
 		},
 	}

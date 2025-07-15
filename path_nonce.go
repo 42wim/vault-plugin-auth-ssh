@@ -14,8 +14,10 @@ func (b *backend) pathNonce() *framework.Path {
 		Pattern: "nonce$",
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.ReadOperation: &framework.PathOperation{
-				Callback: b.pathNonceRead,
-				Summary:  "Generates a new nonce",
+				Callback:                    b.pathNonceRead,
+				Summary:                     "Generates a new nonce",
+				ForwardPerformanceStandby:   true,
+				ForwardPerformanceSecondary: true,
 			},
 		},
 	}
