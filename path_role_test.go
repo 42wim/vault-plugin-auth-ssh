@@ -61,6 +61,7 @@ func TestPath_Create(t *testing.T) {
 				TokenMaxTTL:     5 * time.Second,
 				TokenNumUses:    12,
 				TokenBoundCIDRs: []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
+				AliasMetadata:   map[string]string{},
 			},
 			Principals: []string{"ubuntu", "ubuntu2"},
 			PublicKeys: []string(nil),
@@ -113,6 +114,7 @@ func TestPath_Create(t *testing.T) {
 				TokenMaxTTL:     5 * time.Second,
 				TokenNumUses:    12,
 				TokenBoundCIDRs: []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
+				AliasMetadata:   map[string]string{},
 			},
 			PublicKeys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skL"},
 			Principals: []string(nil),
@@ -187,7 +189,7 @@ func TestPath_Create(t *testing.T) {
 		if resp != nil && !resp.IsError() {
 			t.Fatalf("expected error")
 		}
-		if resp.Error().Error() != "public_keys parsing failed: ssh: no key found" {
+		if resp.Error().Error() != "public_keys parsing failed: ssh: no key found; last parsing error for ignored line: illegal base64 data at input byte 68" {
 			t.Fatalf("unexpected err: %v", resp)
 		}
 	})
@@ -196,8 +198,10 @@ func TestPath_Create(t *testing.T) {
 		b, storage := getBackend(t)
 		data := map[string]interface{}{
 			"policies": "test",
-			"public_keys": []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skL",
-				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skLX"},
+			"public_keys": []string{
+				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skL",
+				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGg0xzFrvEYbZGkF5vWlHUutACUTLH7WMUG09NOi6skLX",
+			},
 		}
 
 		req := &logical.Request{
@@ -214,7 +218,7 @@ func TestPath_Create(t *testing.T) {
 		if resp != nil && !resp.IsError() {
 			t.Fatalf("expected error")
 		}
-		if resp.Error().Error() != "public_keys parsing failed: ssh: no key found" {
+		if resp.Error().Error() != "public_keys parsing failed: ssh: no key found; last parsing error for ignored line: illegal base64 data at input byte 68" {
 			t.Fatalf("unexpected err: %v", resp)
 		}
 	})
