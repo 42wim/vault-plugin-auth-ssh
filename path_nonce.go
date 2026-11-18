@@ -39,8 +39,8 @@ func (b *backend) pathNonceRead(ctx context.Context, req *logical.Request, data 
 }
 
 func (b *backend) nonceValidate(config *ConfigEntry, nonce []byte) bool {
-	b.nonceLock.RLock()
-	defer b.nonceLock.RUnlock()
+	b.nonceLock.Lock()
+	defer b.nonceLock.Unlock()
 
 	if t, ok := b.nonces[string(nonce)]; ok {
 		delete(b.nonces, string(nonce))
